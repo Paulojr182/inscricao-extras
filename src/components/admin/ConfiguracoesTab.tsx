@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Plus, Pencil, Trash2, ShieldCheck, UserPlus, Lock, CheckCircle2, Database, Download } from 'lucide-react';
+import { Plus, Pencil, Trash2, ShieldCheck, UserPlus, Lock, CheckCircle2, Database, Download, Upload } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 
@@ -52,7 +52,7 @@ const availableMenus = [
 ];
 
 const ConfiguracoesTab = () => {
-  const { usuario: currentUser, hasPermission } = useAuth();
+  const { usuario: currentUser, hasPermission, logout } = useAuth();
   const canEdit = hasPermission('configuracoes', 'write');
   const [admins, setAdmins] = useState<Usuario[]>([]);
   const [languageClasses, setLanguageClasses] = useState<TurmaAtividade[]>([]);
@@ -80,6 +80,30 @@ const ConfiguracoesTab = () => {
     setAdmins(allUsers.filter(u => u.tipo === 'admin'));
     setLanguageClasses(turmas.filter(t => languageActivityIds.has(t.atividadeId)).sort((a,b) => a.nome.localeCompare(b.nome)));
     setLoading(false);
+  };
+
+  const handleRestoreDatabase = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.sqlite')) return toast.error('Selecione um arquivo .sqlite.');
+    if (!confirm('A restauracao substituir? os dados atuais. Deseja continuar?')) return;
+    const toastId = toast.loading('Restaurando banco de dados...');
+    try {
+      const response = await fetch('/api/restore', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${sessionStorage.getItem('optativas_token')}`, 'Content-Type': 'application/octet-stream' },
+        body: file
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Falha ao restaurar banco.');
+      toast.success('Banco restaurado. Entre novamente com o usuario do banco importado.');
+      setTimeout(() => logout(), 1200);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao restaurar banco.');
+    } finally {
+      toast.dismiss(toastId);
+    }
   };
 
   const handleOpenDialog = (admin?: Usuario) => {
@@ -214,6 +238,10 @@ const ConfiguracoesTab = () => {
         <div className="flex items-center gap-3">
           <Button onClick={handleDownloadBackup} variant="outline" className="border-primary/20 text-primary shadow-sm hover:bg-primary/5">
             <Database className="w-4 h-4 mr-2" /> Backup do Banco
+          </Button>
+          <input id="restore-database" type="file" accept=".sqlite" className="hidden" onChange={handleRestoreDatabase} />
+          <Button type="button" variant="outline" disabled={!currentUser?.permissoes?.includes('*')} onClick={() => document.getElementById('restore-database')?.click()} className="border-primary/20 text-primary shadow-sm hover:bg-primary/5">
+            <Upload className="w-4 h-4 mr-2" /> Restaurar Banco
           </Button>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>

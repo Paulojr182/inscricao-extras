@@ -234,3 +234,41 @@ export async function runLocked<T>(
 export async function createBackup(destPath: string): Promise<void> {
   await db.backup(destPath);
 }
+
+
+export async function restoreDatabase(sourcePath: string): Promise<string> {
+  const source = new Database(sourcePath, { readonly: true });
+  try {
+    if (source.pragma('integrity_check', { simple: true }) !== 'ok') {
+      throw new Error('Arquivo SQLite invalido.');
+    }
+
+    const tables = ['usuarios', 'estudantes', 'atividades', 'turmas_atividades', 'inscricoes', 'periodos', 'periodos_grupos', 'boletins'];
+    const sourceTables = new Set((source.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as { name: string }[]).map(row => row.name));
+    for (const required of ['usuarios', 'estudantes', 'atividades', 'turmas_atividades']) {
+      if (!sourceTables.has(required)) throw new Error(`Tabela obrigatoria ausente: ${required}`);
+    }
+
+    const backupPath = path.join(path.dirname(dbPath), `pre-restore-${new Date().toISOString().replace(/[:.]/g, '-')}.sqlite`);
+    await db.backup(backupPath);
+
+    const restore = db.transaction(() => {
+      for (const table of tables) {
+        if (!sourceTables.has(table)) continue;
+        const rows = source.prepare(`SELECT * FROM ${table}`).all() as Record<string, unknown>[];
+        const destinationColumns = new Set((db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map(column => column.name));
+        db.prepare(`DELETE FROM ${table}`).run();
+        for (const row of rows) {
+          const keys = Object.keys(row).filter(key => destinationColumns.has(key));
+          if (!keys.length) continue;
+          const placeholders = keys.map(() => '?').join(',');
+          db.prepare(`INSERT INTO ${table} (${keys.join(',')}) VALUES (${placeholders})`).run(...keys.map(key => row[key]));
+        }
+      }
+    });
+    restore();
+    return backupPath;
+  } finally {
+    source.close();
+  }
+}

@@ -3,7 +3,7 @@ import cors from 'cors';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { initDb, readCollection, writeCollection, runLocked, appendToCollection, createBackup } from './db.js';
+import { initDb, readCollection, writeCollection, runLocked, appendToCollection, createBackup, restoreDatabase } from './db.js';
 import type { Usuario, Boletim } from './types.js';
 
 const app = express();
@@ -520,6 +520,22 @@ app.get('/api/backup', requireAdmin, async (req, res) => {
 });
 
 // ─── Start Server ─────────────────────────────────────────────────────────────
+app.post('/api/restore', requireAdmin, express.raw({ type: 'application/octet-stream', limit: '100mb' }), async (req: any, res) => {
+  if (!req.adminUser.permissoes?.includes('*')) return res.status(403).json({ error: 'Apenas administradores com acesso total podem restaurar o banco.' });
+  if (!Buffer.isBuffer(req.body) || req.body.length === 0) return res.status(400).json({ error: 'Arquivo SQLite nao enviado.' });
+  const tempPath = path.join(os.tmpdir(), `restore-${crypto.randomUUID()}.sqlite`);
+  try {
+    fs.writeFileSync(tempPath, req.body);
+    const backupPath = await restoreDatabase(tempPath);
+    res.json({ success: true, backup: path.basename(backupPath) });
+  } catch (error) {
+    console.error('Database restore failed:', error);
+    res.status(400).json({ error: error instanceof Error ? error.message : 'Falha ao restaurar banco.' });
+  } finally {
+    fs.unlink(tempPath, () => {});
+  }
+});
+
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
