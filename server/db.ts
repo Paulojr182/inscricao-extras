@@ -111,6 +111,16 @@ export async function initDb() {
       expiresAt INTEGER NOT NULL
     );
   `);
+
+  const bootstrapEmail = process.env.BOOTSTRAP_ADMIN_EMAIL?.trim();
+  const bootstrapPassword = process.env.BOOTSTRAP_ADMIN_PASSWORD;
+  const adminCount = db.prepare("SELECT COUNT(*) AS count FROM usuarios WHERE tipo = 'admin'").get() as { count: number };
+  if (adminCount.count === 0 && bootstrapEmail && bootstrapPassword) {
+    db.prepare(`INSERT INTO usuarios (id, email, senha, tipo, permissoes) VALUES (?, ?, ?, 'admin', ?)`)
+      .run('bootstrap-admin', bootstrapEmail, bootstrapPassword, JSON.stringify(['*']));
+    console.log(`Bootstrap administrator created: ${bootstrapEmail}`);
+  }
+
   console.log("SQLite Database ready.");
 }
 
