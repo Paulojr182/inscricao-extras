@@ -1,0 +1,25 @@
+{
+  "name": "course-connect-server",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "tsx index.ts",
+    "dev": "tsx watch index.ts",
+    "build": "tsc",
+    "start:prod": "node dist/index.js",
+    "start:pm2": "pm2 start dist/index.js --name course-connect-server"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.8.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.11.24",
+    "tsx": "^4.19.1",
+    "typescript": "^5.3.3"
+  }
+}
